@@ -1,0 +1,117 @@
+import os
+import pandas as pd
+import csv
+import numpy as np
+import nltk
+from nltk.stem import SnowballStemmer
+from nltk.stem.porter import PorterStemmer
+from nltk.tokenize import word_tokenize
+import seaborn as sb
+
+# Define file paths for train, test, and validation datasets.
+test_filename = r'C:\Users\M.Geethasree\OneDrive\Desktop\important\Fake_News_Detection\test.csv'
+train_filename = r'C:\Users\M.Geethasree\OneDrive\Desktop\important\Fake_News_Detection\train.csv'
+valid_filename = r'C:\Users\M.Geethasree\OneDrive\Desktop\important\Fake_News_Detection\valid.csv'
+
+# Load datasets into pandas DataFrames for analysis.
+train_news = pd.read_csv(train_filename)
+test_news = pd.read_csv(test_filename)
+valid_news = pd.read_csv(valid_filename)
+
+# Function to observe dataset shapes and preview first 10 rows.
+def data_obs():
+    print("Training dataset size and preview:")
+    print(train_news.shape)
+    print(train_news.head(10))  # Display the first 10 rows.
+
+    print("Test dataset size and preview:")
+    print(test_news.shape)
+    print(test_news.head(10))
+
+    print("Validation dataset size and preview:")
+    print(valid_news.shape)
+    print(valid_news.head(10))
+
+# Create distribution plots to visualize label distribution in datasets.
+def create_distribution(dataFile):
+    return sb.countplot(x='Label', data=dataFile, palette='hls')
+
+# Visualizing the class distributions of train, test, and validation datasets.
+create_distribution(train_news)
+create_distribution(test_news)
+create_distribution(valid_news)
+
+# Function to check data quality by identifying missing values and examining data structure.
+def data_qualityCheck():
+    print("Checking data quality for training dataset:")
+    print(train_news.isnull().sum())  # Check for missing values.
+    train_news.info()  # Display column information.
+
+    print("Checking data quality for test dataset:")
+    print(test_news.isnull().sum())
+    test_news.info()
+
+    print("Checking data quality for validation dataset:")
+    print(valid_news.isnull().sum())
+    valid_news.info()
+
+# Function to perform stemming (reduce words to their root form).
+def stem_tokens(tokens, stemmer):
+    stemmed = []
+    for token in tokens:
+        stemmed.append(stemmer.stem(token))
+    return stemmed
+
+# Process text data: tokenize, stem, and optionally remove stopwords.
+def process_data(data, exclude_stopword=True, stem=True):
+    tokens = [w.lower() for w in data]  # Convert to lowercase.
+    tokens_stemmed = tokens
+    if stem:
+        tokens_stemmed = stem_tokens(tokens, eng_stemmer)  # Apply stemming.
+    if exclude_stopword:
+        tokens_stemmed = [w for w in tokens_stemmed if w not in stopwords]  # Remove stopwords.
+    return tokens_stemmed
+
+# Functions to create n-grams (unigrams and bigrams).
+# Unigram: Single words.
+def create_unigram(words):
+    assert type(words) == list
+    return words
+
+# Bigram: Consecutive pairs of words.
+def create_bigrams(words):
+    assert type(words) == list
+    skip = 0  # No skip logic implemented.
+    join_str = " "  # Join words with a space.
+    Len = len(words)
+    if Len > 1:
+        lst = []
+        for i in range(Len - 1):  # Loop through the word list.
+            for k in range(1, skip + 2):
+                if i + k < Len:
+                    lst.append(join_str.join([words[i], words[i + k]]))  # Create bigram pairs.
+    else:
+        lst = create_unigram(words)  # Fall back to unigram if fewer than 2 words.
+    return lst
+
+# Instantiate the Porter Stemmer (used for stemming text).
+porter = PorterStemmer()
+
+# Basic tokenizer: Splits text into individual words.
+def tokenizer(text):
+    return text.split()
+
+# Tokenizer with stemming applied.
+def tokenizer_porter(text):
+    return [porter.stem(word) for word in text.split()]
+
+# Logic to convert multi-class labels to binary classes ("true" or "false").
+"""
+for i, row in data_TrainNews.iterrows():
+    if data_TrainNews.iloc[:, 0] in ["mostly-true", "half-true", "true"]:
+        data_TrainNews.iloc[:, 0] = "true"
+    else:
+        data_TrainNews.iloc[:, 0] = "false"
+"""
+
+
