@@ -1,0 +1,74 @@
+name: "CaffeNet"  # The name of the network model
+input: "data"  # Input layer definition
+input_dim: 1  # Number of input images in a batch
+input_dim: 3  # Number of color channels (RGB)
+input_dim: 227  # Image height
+input_dim: 227  # Image width
+
+layers {
+  name: "conv1"  # First convolutional layer
+  type: CONVOLUTION
+  bottom: "data"  # Input source for this layer
+  top: "conv1"  # Output after the convolution
+  convolution_param {
+    num_output: 96  # Number of filters
+    kernel_size: 7  # Size of each filter (7x7)
+    stride: 4  # Stride for moving the filter across the image
+  }
+}
+
+layers {
+  name: "relu1"  # Activation function for non-linearity
+  type: RELU
+  bottom: "conv1"
+  top: "conv1"
+}
+
+layers {
+  name: "pool1"  # First pooling layer for spatial downsampling
+  type: POOLING
+  bottom: "conv1"
+  top: "pool1"
+  pooling_param {
+    pool: MAX  # Max pooling operation
+    kernel_size: 3  # Size of pooling window
+    stride: 2  # Step size for pooling
+  }
+}
+
+layers {
+  name: "norm1"  # First Local Response Normalization
+  type: LRN
+  bottom: "pool1"
+  top: "norm1"
+  lrn_param {
+    local_size: 5  # Size of the normalization window
+    alpha: 0.0001  # Scale parameter
+    beta: 0.75  # Exponent parameter
+  }
+}
+
+layers {
+  name: "conv2"  # Second convolutional layer
+  type: CONVOLUTION
+  bottom: "norm1"
+  top: "conv2"
+  convolution_param {
+    num_output: 256  # Number of filters
+    pad: 2  # Padding added to the input for border handling
+    kernel_size: 5  # Size of each filter
+  }
+}
+
+# Further layers follow similar patterns with specific purposes:
+# RELU layers add non-linearity, pooling layers reduce dimensions,
+# fully connected layers (fc6, fc7) create a deeper representation,
+# dropout layers prevent overfitting, and softmax ("prob") is used for classification.
+
+# For example:
+layers {
+  name: "prob"  # Final softmax layer
+  type: SOFTMAX
+  bottom: "fc8"  # Input is the output of the last fully connected layer
+  top: "prob"  # Output probabilities for the classes
+}
