@@ -1,0 +1,133 @@
+import sys
+import DataPrep  # Custom module for preprocessing data.
+import pandas as pd
+import numpy as np
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer, TfidfVectorizer
+from sklearn.decomposition import LatentDirichletAllocation  # For topic modeling.
+from sklearn.pipeline import Pipeline
+import nltk
+from nltk.tokenize import word_tokenize
+from gensim.models.word2vec import Word2Vec
+
+nltk.download('treebank')  # Download the Treebank corpus.
+import nltk.corpus 
+
+# Step 1: Bag of Words Technique
+# Create a document-term matrix using CountVectorizer
+countV = CountVectorizer()
+train_count = countV.fit_transform(DataPrep.train_news['Statement'].values)  # Generate term-frequency matrix.
+
+print(countV)  # Displays the CountVectorizer configuration.
+print(train_count)  # Displays the document-term matrix.
+
+# Function to get statistics about the CountVectorizer features
+def get_countVectorizer_stats():
+    # Show the shape of the term-document matrix (documents x vocabulary size)
+    print("Matrix shape (documents, vocab size):", train_count.shape)
+
+    # Display the vocabulary learned by CountVectorizer
+    print("Vocabulary:", countV.vocabulary_)
+
+    # Display sample feature names (first 25)
+    print("Feature names (sample):", countV.get_feature_names()[:25])
+
+# Step 2: Create TF-IDF Features
+# Transform the document-term matrix into TF-IDF features.
+tfidfV = TfidfTransformer()
+train_tfidf = tfidfV.fit_transform(train_count)  # Apply the transformation.
+
+# Function to get information about TF-IDF features
+def get_tfidf_stats():
+    print("TF-IDF matrix shape:", train_tfidf.shape)  # Check matrix dimensions.
+    # Display the TF-IDF representation for the first 10 rows.
+    print("TF-IDF matrix (first 10 rows):", train_tfidf.A[:10])
+
+# Step 3: N-Grams
+# Extend the Bag of Words approach to include unigrams, bigrams, and trigrams.
+tfidf_ngram = TfidfVectorizer(stop_words='english', ngram_range=(1, 4), use_idf=True, smooth_idf=True)
+
+# Step 4: POS (Part of Speech) Tagging
+tagged_sentences = nltk.corpus.treebank.tagged_sents()  # Get POS-tagged sentences from Treebank corpus.
+
+# Extract the training data (75% of the dataset, example only).
+cutoff = int(.75 * len(tagged_sentences))
+training_sentences = DataPrep.train_news['Statement']  # Extract statements for POS tagging.
+
+print(training_sentences)  # Print training sentences.
+
+# Function to extract features for a specific word in a sentence.
+def features(sentence, index):
+    """Extract features for POS tagging from a sentence."""
+    return {
+        'word': sentence[index],  # Current word.
+        'is_first': index == 0,  # Is it the first word in the sentence?
+        'is_last': index == len(sentence) - 1,  # Is it the last word in the sentence?
+        'is_capitalized': sentence[index][0].upper() == sentence[index][0],  # Is the first letter capitalized?
+        'is_all_caps': sentence[index].upper() == sentence[index],  # Is the word in all caps?
+        'is_all_lower': sentence[index].lower() == sentence[index],  # Is the word in all lowercase?
+        'prefix-1': sentence[index][0],  # First character of the word.
+        'prefix-2': sentence[index][:2],  # First two characters of the word.
+        'prefix-3': sentence[index][:3],  # First three characters of the word.
+        'suffix-1': sentence[index][-1],  # Last character of the word.
+        'suffix-2': sentence[index][-2:],  # Last two characters of the word.
+        'suffix-3': sentence[index][-3:],  # Last three characters of the word.
+        'prev_word': '' if index == 0 else sentence[index - 1],  # Previous word.
+        'next_word': '' if index == len(sentence) - 1 else sentence[index + 1],  # Next word.
+        'has_hyphen': '-' in sentence[index],  # Does the word contain a hyphen?
+        'is_numeric': sentence[index].isdigit(),  # Is the word numeric?
+        'capitals_inside': sentence[index][1:].lower() != sentence[index][1:]  # Are there capitals inside the word?
+    }
+    
+# Helper function to remove tags from a tagged sentence.
+def untag(tagged_sentence):
+    return [w for w, t in tagged_sentence]  # Strip tags from tagged data.
+
+# Step 5: Word2Vec for Feature Embedding
+# Load pre-trained GloVe embeddings.
+with open("glove.6B.50d.txt", "rb") as lines:
+    w2v = {line.split()[0]: np.array(map(float, line.split()[1:]))
+           for line in lines}  # Create a dictionary with word vectors.
+
+# Define a class for Mean Embedding Vectorizer using Word2Vec
+class MeanEmbeddingVectorizer(object):
+    def __init__(self, word2vec):
+        self.word2vec = word2vec  # Store the Word2Vec model.
+        self.dim = len(next(iter(word2vec.values())))  # Dimensionality of word embeddings.
+
+    def fit(self, X, y):
+        return self  # No fitting required.
+
+    def transform(self, X):
+        # Calculate the mean embedding for each text.
+        return np.array([
+            np.mean([self.word2vec[w] for w in words if w in self.word2vec]
+                    or [np.zeros(self.dim)], axis=0)
+            for words in X
+        ])
+
+# Define a class for TF-IDF Weighted Embedding Vectorizer
+class TfidfEmbeddingVectorizer(object):
+    def __init__(self, word2vec):
+        self.word2vec = word2vec
+        self.word2weight = None
+        self.dim = len(next(iter(word2vec.values())))
+
+    def fit(self, X, y):
+        tfidf = TfidfVectorizer(analyzer=lambda x: x)  # Create TF-IDF model.
+        tfidf.fit(X)  # Fit to text data.
+
+        max_idf = max(tfidf.idf_)  # Assign the maximum IDF for unseen words.
+        self.word2weight = defaultdict(
+            lambda: max_idf,
+            [(w, tfidf.idf_[i]) for w, i in tfidf.vocabulary_.items()]
+        )
+        return self
+
+    def transform(self, X):
+        # Apply TF-IDF weighting to the embedding vector.
+        return np.array([
+                np.mean([self.word2vec[w] * self.word2weight[w]
+                         for w in words if w in self.word2vec] or
+                        [np.zeros(self.dim)], axis=0)
+                for words in X
+            ])
